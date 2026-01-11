@@ -52,7 +52,6 @@
         .radio-box input { cursor: pointer; accent-color: #00ff7f; }
         .radio-box.active { border-color: #00ff7f; color: #00ff7f; background: #00331a; }
 
-        /* Quality Selector Styles */
         .quality-selector { display: none; gap: 10px; align-items: center; margin-top: 10px; width: 100%; }
 
         #file-input { display: none; }
@@ -147,27 +146,15 @@
         let endTime = 0;
         let activePlayer = audioPlayer;
         let isDragging = false;
-        let isSeeking = false; 
 
-        // Handle format selector UI and Quality Area visibility
         document.querySelectorAll('input[name="out-format"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 const isMP4 = e.target.value === 'mp4';
                 document.getElementById('label-mp4').classList.toggle('active', isMP4);
                 document.getElementById('label-mp3').classList.toggle('active', !isMP4);
-                
-                // Show quality only for MP4 output
                 if(fileInput.files[0]?.type.startsWith('video')) {
                     qualityArea.style.display = isMP4 ? "flex" : "none";
                 }
-            });
-        });
-
-        // Handle quality selector UI
-        document.querySelectorAll('input[name="video-quality"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                document.getElementById('label-360').classList.toggle('active', e.target.value === '360');
-                document.getElementById('label-480').classList.toggle('active', e.target.value === '480');
             });
         });
 
@@ -177,16 +164,14 @@
                 audioPlayer.pause();
                 videoPlayer.pause();
                 playBtn.innerHTML = '<i class="fas fa-play"></i>';
-                
                 if (activePlayer.src) URL.revokeObjectURL(activePlayer.src);
-
                 const url = URL.createObjectURL(file);
                 if (file.type.startsWith('video')) {
                     activePlayer = videoPlayer;
                     videoPlayer.style.display = "block";
                     uploadText.style.display = "none";
                     formatArea.style.display = "flex";
-                    qualityArea.style.display = "flex"; // Default show quality for video
+                    qualityArea.style.display = "flex";
                 } else {
                     activePlayer = audioPlayer;
                     videoPlayer.style.display = "none";
@@ -195,7 +180,6 @@
                     formatArea.style.display = "none";
                     qualityArea.style.display = "none";
                 }
-                
                 activePlayer.src = url;
                 activePlayer.load();
                 playHead.style.display = "block";
@@ -238,7 +222,7 @@
 
         playBtn.onclick = function() {
             if (activePlayer.paused) {
-                if (activePlayer.currentTime >= endTime - 0.1) {
+                if (activePlayer.currentTime >= endTime - 0.1 || activePlayer.currentTime < startTime) {
                     activePlayer.currentTime = startTime;
                 }
                 activePlayer.play();
@@ -255,7 +239,6 @@
                 playHead.style.left = progress + "%";
                 updateUI();
             }
-
             if (activePlayer.currentTime >= endTime && !activePlayer.paused) {
                 activePlayer.pause();
                 activePlayer.currentTime = startTime;
@@ -266,14 +249,12 @@
         audioPlayer.ontimeupdate = onTimeUpdate;
         videoPlayer.ontimeupdate = onTimeUpdate;
 
-        activePlayer.onseeked = () => { isSeeking = false; };
-
         function handleDrag(pointer, isStart) {
             pointer.onmousedown = function(e) {
                 e.preventDefault();
                 isDragging = true;
-                const wasPlaying = !activePlayer.paused;
                 activePlayer.pause();
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
                 
                 function move(moveEvent) {
                     let rect = trackBoundary.getBoundingClientRect();
@@ -285,46 +266,24 @@
                         if (percent < endPercent - 2) {
                             pointer.style.left = percent + "%";
                             startTime = (percent / 100) * duration;
-                            playHead.style.left = percent + "%";
-                            
-                            // SYNC: Lock only for Video, smooth for Audio
-                            if (activePlayer === videoPlayer) {
-                                if (!isSeeking) {
-                                    isSeeking = true;
-                                    activePlayer.currentTime = startTime;
-                                }
-                            } else {
-                                activePlayer.currentTime = startTime;
-                            }
+                            activePlayer.currentTime = startTime; 
                         }
                     } else {
                         let startPercent = parseFloat(pStart.style.left);
                         if (percent > startPercent + 2) {
                             pointer.style.left = percent + "%";
                             endTime = (percent / 100) * duration;
-                            
-                            // SYNC: Lock only for Video, smooth for Audio
-                            if (activePlayer === videoPlayer) {
-                                if (!isSeeking) {
-                                    isSeeking = true;
-                                    activePlayer.currentTime = endTime;
-                                }
-                            } else {
-                                activePlayer.currentTime = endTime;
-                            }
+                            activePlayer.currentTime = endTime;
                         }
                     }
                     updateSelectionZone();
                     updateUI();
                 }
-
                 function stop() {
                     isDragging = false;
                     document.removeEventListener('mousemove', move);
                     document.removeEventListener('mouseup', stop);
-                    if (wasPlaying) activePlayer.play();
                 }
-
                 document.addEventListener('mousemove', move);
                 document.addEventListener('mouseup', stop);
             };
@@ -337,6 +296,12 @@
             const file = fileInput.files[0];
             if (!file) return alert("Please upload a file first!");
 
+            // FIX: Re-calculate actual start and end strictly based on pointer positions
+            const startPct = parseFloat(pStart.style.left) / 100;
+            const endPct = parseFloat(pEnd.style.left) / 100;
+            const actualStart = startPct * duration;
+            const actualEnd = endPct * duration;
+
             const selectedFormat = document.querySelector('input[name="out-format"]:checked')?.value || 'mp4';
             const selectedQuality = document.querySelector('input[name="video-quality"]:checked')?.value || '360';
             
@@ -345,10 +310,10 @@
 
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('start_time', startTime.toFixed(2));
-            formData.append('end_time', endTime.toFixed(2));
+            formData.append('start_time', actualStart.toFixed(2));
+            formData.append('end_time', actualEnd.toFixed(2));
             formData.append('format', selectedFormat);
-            formData.append('quality', selectedQuality); // Send quality to backend
+            formData.append('quality', selectedQuality);
 
             try {
                 const response = await fetch('/convert', { method: 'POST', body: formData });
@@ -357,14 +322,19 @@
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
+                    
+                    const originalName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
                     const ext = (file.type.startsWith('video') && selectedFormat === 'mp4') ? 'mp4' : 'mp3';
-                    a.download = `trimmed_result.${ext}`;
+                    
+                    a.download = `${originalName}_trimmed.${ext}`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-                    trimAction.innerText = "TRIMMED ✅";
+                    window.URL.revokeObjectURL(url);
+                    trimAction.innerText = "DONE ✅";
                 } else {
-                    alert("Trim failed.");
+                    const errorText = await response.text();
+                    alert("Trim failed: " + (errorText || "Server error."));
                     trimAction.innerText = "TRIM";
                 }
             } catch (error) {
