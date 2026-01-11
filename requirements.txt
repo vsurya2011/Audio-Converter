@@ -1,0 +1,8 @@
+flask
+flask-cors
+gtts
+speechrecognition
+pydub
+yt-dlp
+werkzeug
+gunicorn

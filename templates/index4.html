@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Converter - Trim</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #000000; color: white; font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-transform: uppercase; overflow: hidden; }
+        .container { background-color: #000000; border: 1px solid #333; border-radius: 15px; padding: 40px; width: 850px; position: relative; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .logo { font-size: 28px; display: flex; align-items: center; gap: 10px; }
+        .mode-badge { background-color: white; color: black; padding: 5px 40px; border-radius: 8px; font-weight: bold; font-size: 18px; }
+        .main-content { display: flex; gap: 20px; margin-bottom: 30px; }
+        .upload-box { background-color: white; color: black; flex: 1.2; height: 220px; display: flex; justify-content: center; align-items: center; text-align: center; font-size: 18px; padding: 10px; cursor: pointer; overflow: hidden; border: 2px dashed #444; position: relative; border-radius: 10px; }
+        
+        #video-player { width: 100%; height: 100%; display: none; object-fit: contain; background: black; pointer-events: none; }
+
+        .trim-controls { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .note { font-size: 12px; color: #00ff7f; margin-bottom: 10px; font-weight: bold; }
+        .slider-container { background-color: #1a1a1a; padding: 20px; border-radius: 15px; position: relative; border: 1px solid #333; }
+        
+        .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .trim-duration-info { font-size: 12px; color: #aaa; background: #000; padding: 5px 10px; border-radius: 5px; border-left: 3px solid #00ff7f; }
+        .time-display { text-align: right; font-size: 16px; font-family: 'Courier New', Courier, monospace; letter-spacing: 1px; color: #00ff7f; }
+        
+        .waveform-area { display: flex; align-items: center; gap: 15px; }
+        .play-btn { color: white; font-size: 28px; cursor: pointer; border: none; background: none; transition: transform 0.2s, color 0.2s; }
+        .play-btn:hover { color: #00ff7f; }
+        .play-btn:active { transform: scale(0.9); }
+        
+        .slider-wrapper { flex-grow: 1; position: relative; height: 40px; display: flex; align-items: center; }
+        .slider-bar { width: 100%; height: 6px; background: #333; position: relative; border-radius: 3px; }
+        
+        #selection-zone { position: absolute; height: 100%; background: rgba(0, 255, 127, 0.3); z-index: 1; border-radius: 3px; pointer-events: none; }
+
+        .pointer { position: absolute; top: -12px; width: 16px; height: 30px; background-color: white; cursor: grab; transform: translateX(-50%); z-index: 10; border-radius: 3px; box-shadow: 0 0 10px rgba(0,0,0,0.5); border: 2px solid #00ff7f; }
+        .pointer::after { content: ""; position: absolute; top: 8px; left: 4px; width: 2px; height: 10px; background: #333; box-shadow: 4px 0 #333; }
+        .pointer:active { cursor: grabbing; background-color: #00ff7f; }
+        
+        #play-head { position: absolute; top: -5px; width: 4px; height: 16px; background: #00ff7f; z-index: 5; transform: translateX(-50%); pointer-events: none; border-radius: 2px; display: none; }
+
+        .button-group { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .btn { flex: 1; padding: 15px; border: none; border-radius: 10px; font-size: 18px; font-family: 'Arial Black', sans-serif; cursor: pointer; text-transform: uppercase; min-width: 120px; transition: 0.3s; }
+        .btn-upload { background-color: white; color: black; }
+        .btn-upload:hover { background-color: #ddd; }
+        .btn-trim { background-color: #00ff7f; color: black; }
+        .btn-trim:hover { background-color: #00cc66; transform: translateY(-2px); }
+        
+        .format-selector { display: none; gap: 10px; align-items: center; margin-top: 10px; width: 100%; }
+        .radio-box { background: #111; padding: 10px; border-radius: 8px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; border: 1px solid #444; transition: 0.2s; }
+        .radio-box input { cursor: pointer; accent-color: #00ff7f; }
+        .radio-box.active { border-color: #00ff7f; color: #00ff7f; background: #00331a; }
+
+        /* Quality Selector Styles */
+        .quality-selector { display: none; gap: 10px; align-items: center; margin-top: 10px; width: 100%; }
+
+        #file-input { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <div class="logo"><i class="fas fa-file-audio"></i> AUDIO CONVERTER</div>
+            <div class="mode-badge">TRIM</div>
+        </div>
+
+        <div class="main-content">
+            <div class="upload-box" id="drop-zone" onclick="document.getElementById('file-input').click()">
+                <span id="upload-text">UPLOAD HERE (VIDEO/AUDIO)</span>
+                <video id="video-player" preload="auto" playsinline></video>
+            </div>
+
+            <div class="trim-controls">
+                <div class="note">(NOTE : USE THE POINTERS FOR TRIM)</div>
+                <div class="slider-container">
+                    <div class="info-row">
+                        <div class="trim-duration-info" id="trim-diff">SELECTED: 00:00</div>
+                        <div class="time-display" id="time-range">00:00 / 00:00</div>
+                    </div>
+                    
+                    <div class="waveform-area">
+                        <button class="play-btn" id="master-play"><i class="fas fa-play"></i></button>
+                        <div class="slider-wrapper" id="track-boundary">
+                            <div class="slider-bar">
+                                <div id="selection-zone"></div>
+                                <div id="play-head"></div>
+                                <div class="pointer" id="p-start" style="left: 0%;"></div>
+                                <div class="pointer" id="p-end" style="left: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="format-selector" id="format-area">
+            <span style="font-size: 12px;">Output Type:</span>
+            <label class="radio-box active" id="label-mp4">
+                <input type="radio" name="out-format" value="mp4" checked> MP4 TO MP4
+            </label>
+            <label class="radio-box" id="label-mp3">
+                <input type="radio" name="out-format" value="mp3"> MP4 TO MP3
+            </label>
+        </div>
+
+        <div class="quality-selector" id="quality-area">
+            <span style="font-size: 12px;">Quality:</span>
+            <label class="radio-box active" id="label-360">
+                <input type="radio" name="video-quality" value="360" checked> 360P
+            </label>
+            <label class="radio-box" id="label-480">
+                <input type="radio" name="video-quality" value="480"> 480P
+            </label>
+        </div>
+
+        <div class="button-group" style="margin-top: 20px;">
+            <button class="btn btn-upload" onclick="document.getElementById('file-input').click()">UPLOAD</button>
+            <button class="btn btn-trim" id="trim-action">TRIM</button>
+        </div>
+
+        <input type="file" id="file-input" accept="video/*,audio/*">
+        <audio id="audio-player"></audio>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const audioPlayer = document.getElementById('audio-player');
+        const videoPlayer = document.getElementById('video-player');
+        const uploadBox = document.getElementById('drop-zone');
+        const uploadText = document.getElementById('upload-text');
+        const timeDisplay = document.getElementById('time-range');
+        const trimDiffDisplay = document.getElementById('trim-diff');
+        const playBtn = document.getElementById('master-play');
+        const pStart = document.getElementById('p-start');
+        const pEnd = document.getElementById('p-end');
+        const playHead = document.getElementById('play-head');
+        const selectionZone = document.getElementById('selection-zone');
+        const trackBoundary = document.getElementById('track-boundary');
+        const trimAction = document.getElementById('trim-action');
+        const formatArea = document.getElementById('format-area');
+        const qualityArea = document.getElementById('quality-area');
+
+        let duration = 0;
+        let startTime = 0;
+        let endTime = 0;
+        let activePlayer = audioPlayer;
+        let isDragging = false;
+        let isSeeking = false; 
+
+        // Handle format selector UI and Quality Area visibility
+        document.querySelectorAll('input[name="out-format"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const isMP4 = e.target.value === 'mp4';
+                document.getElementById('label-mp4').classList.toggle('active', isMP4);
+                document.getElementById('label-mp3').classList.toggle('active', !isMP4);
+                
+                // Show quality only for MP4 output
+                if(fileInput.files[0]?.type.startsWith('video')) {
+                    qualityArea.style.display = isMP4 ? "flex" : "none";
+                }
+            });
+        });
+
+        // Handle quality selector UI
+        document.querySelectorAll('input[name="video-quality"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                document.getElementById('label-360').classList.toggle('active', e.target.value === '360');
+                document.getElementById('label-480').classList.toggle('active', e.target.value === '480');
+            });
+        });
+
+        fileInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                audioPlayer.pause();
+                videoPlayer.pause();
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
+                
+                if (activePlayer.src) URL.revokeObjectURL(activePlayer.src);
+
+                const url = URL.createObjectURL(file);
+                if (file.type.startsWith('video')) {
+                    activePlayer = videoPlayer;
+                    videoPlayer.style.display = "block";
+                    uploadText.style.display = "none";
+                    formatArea.style.display = "flex";
+                    qualityArea.style.display = "flex"; // Default show quality for video
+                } else {
+                    activePlayer = audioPlayer;
+                    videoPlayer.style.display = "none";
+                    uploadText.style.display = "block";
+                    uploadBox.innerText = file.name;
+                    formatArea.style.display = "none";
+                    qualityArea.style.display = "none";
+                }
+                
+                activePlayer.src = url;
+                activePlayer.load();
+                playHead.style.display = "block";
+            }
+        };
+
+        function setupMetadata() {
+            duration = activePlayer.duration;
+            startTime = 0;
+            endTime = duration;
+            pStart.style.left = "0%";
+            pEnd.style.left = "100%";
+            playHead.style.left = "0%";
+            updateSelectionZone();
+            updateUI();
+        }
+
+        audioPlayer.onloadedmetadata = setupMetadata;
+        videoPlayer.onloadedmetadata = setupMetadata;
+
+        function updateSelectionZone() {
+            const start = parseFloat(pStart.style.left);
+            const end = parseFloat(pEnd.style.left);
+            selectionZone.style.left = start + "%";
+            selectionZone.style.width = (end - start) + "%";
+        }
+
+        function updateUI() {
+            timeDisplay.innerText = `${formatTime(activePlayer.currentTime)} / ${formatTime(duration)}`;
+            let diff = Math.max(0, endTime - startTime);
+            trimDiffDisplay.innerText = `SELECTED: ${formatTime(diff)}`;
+        }
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "00:00";
+            let mins = Math.floor(seconds / 60);
+            let secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        playBtn.onclick = function() {
+            if (activePlayer.paused) {
+                if (activePlayer.currentTime >= endTime - 0.1) {
+                    activePlayer.currentTime = startTime;
+                }
+                activePlayer.play();
+                playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+            } else {
+                activePlayer.pause();
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
+            }
+        };
+
+        function onTimeUpdate() {
+            if (!isDragging) {
+                let progress = (activePlayer.currentTime / duration) * 100;
+                playHead.style.left = progress + "%";
+                updateUI();
+            }
+
+            if (activePlayer.currentTime >= endTime && !activePlayer.paused) {
+                activePlayer.pause();
+                activePlayer.currentTime = startTime;
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
+            }
+        }
+
+        audioPlayer.ontimeupdate = onTimeUpdate;
+        videoPlayer.ontimeupdate = onTimeUpdate;
+
+        activePlayer.onseeked = () => { isSeeking = false; };
+
+        function handleDrag(pointer, isStart) {
+            pointer.onmousedown = function(e) {
+                e.preventDefault();
+                isDragging = true;
+                const wasPlaying = !activePlayer.paused;
+                activePlayer.pause();
+                
+                function move(moveEvent) {
+                    let rect = trackBoundary.getBoundingClientRect();
+                    let x = moveEvent.clientX - rect.left;
+                    let percent = Math.min(Math.max(0, (x / rect.width) * 100), 100);
+                    
+                    if (isStart) {
+                        let endPercent = parseFloat(pEnd.style.left);
+                        if (percent < endPercent - 2) {
+                            pointer.style.left = percent + "%";
+                            startTime = (percent / 100) * duration;
+                            playHead.style.left = percent + "%";
+                            
+                            // SYNC: Lock only for Video, smooth for Audio
+                            if (activePlayer === videoPlayer) {
+                                if (!isSeeking) {
+                                    isSeeking = true;
+                                    activePlayer.currentTime = startTime;
+                                }
+                            } else {
+                                activePlayer.currentTime = startTime;
+                            }
+                        }
+                    } else {
+                        let startPercent = parseFloat(pStart.style.left);
+                        if (percent > startPercent + 2) {
+                            pointer.style.left = percent + "%";
+                            endTime = (percent / 100) * duration;
+                            
+                            // SYNC: Lock only for Video, smooth for Audio
+                            if (activePlayer === videoPlayer) {
+                                if (!isSeeking) {
+                                    isSeeking = true;
+                                    activePlayer.currentTime = endTime;
+                                }
+                            } else {
+                                activePlayer.currentTime = endTime;
+                            }
+                        }
+                    }
+                    updateSelectionZone();
+                    updateUI();
+                }
+
+                function stop() {
+                    isDragging = false;
+                    document.removeEventListener('mousemove', move);
+                    document.removeEventListener('mouseup', stop);
+                    if (wasPlaying) activePlayer.play();
+                }
+
+                document.addEventListener('mousemove', move);
+                document.addEventListener('mouseup', stop);
+            };
+        }
+
+        handleDrag(pStart, true);
+        handleDrag(pEnd, false);
+
+        trimAction.onclick = async function() {
+            const file = fileInput.files[0];
+            if (!file) return alert("Please upload a file first!");
+
+            const selectedFormat = document.querySelector('input[name="out-format"]:checked')?.value || 'mp4';
+            const selectedQuality = document.querySelector('input[name="video-quality"]:checked')?.value || '360';
+            
+            trimAction.innerText = "TRIMMING...";
+            trimAction.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('start_time', startTime.toFixed(2));
+            formData.append('end_time', endTime.toFixed(2));
+            formData.append('format', selectedFormat);
+            formData.append('quality', selectedQuality); // Send quality to backend
+
+            try {
+                const response = await fetch('/convert', { method: 'POST', body: formData });
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const ext = (file.type.startsWith('video') && selectedFormat === 'mp4') ? 'mp4' : 'mp3';
+                    a.download = `trimmed_result.${ext}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    trimAction.innerText = "TRIMMED ✅";
+                } else {
+                    alert("Trim failed.");
+                    trimAction.innerText = "TRIM";
+                }
+            } catch (error) {
+                alert("Connection failed.");
+                trimAction.innerText = "TRIM";
+            } finally {
+                trimAction.disabled = false;
+                setTimeout(() => { trimAction.innerText = "TRIM"; }, 3000);
+            }
+        };
+    </script>
+</body>
+</html>

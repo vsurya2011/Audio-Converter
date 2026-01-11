@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Converter - MP4 to MP3</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: #0d0d1a; overflow: hidden; height: 100vh; display: flex; align-items: center; justify-content: center; color: white; }
+        .ui-wrapper { position: relative; z-index: 10; width: 90%; max-width: 900px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .logo-section { display: flex; align-items: center; gap: 15px; }
+        .logo-icon { width: 35px; height: auto; }
+        .logo-icon path { fill: white; }
+        .title { font-size: 2.5rem; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; }
+        .mode-badge { background: white; color: black; padding: 8px 40px; border-radius: 12px; font-size: 1.5rem; font-weight: 700; }
+        .converter-card { background: rgba(0, 0, 0, 0.85); border: 1px solid #444; border-radius: 20px; padding: 40px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .section-title { font-size: 1.8rem; font-weight: 900; margin-bottom: 20px; text-transform: uppercase; }
+        .url-input { width: 100%; background: black; border: 1px solid #555; border-radius: 12px; padding: 15px; color: white; font-size: 1.2rem; margin-bottom: 30px; outline: none; }
+        .url-input:focus { border-color: #00FF85; }
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .upload-box { border: 2px dashed #666; border-radius: 15px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; height: 200px; cursor: pointer; transition: all 0.3s ease; position: relative; }
+        .upload-box:hover, .upload-box.dragover { border-color: #00FF85; background: rgba(0, 255, 133, 0.05); }
+        .upload-box span { font-size: 1.5rem; font-weight: 900; text-transform: uppercase; line-height: 1.1; pointer-events: none; word-break: break-all; }
+        #file-input { display: none; }
+        .button-column { display: flex; flex-direction: column; justify-content: center; gap: 20px; }
+        .btn { width: 100%; padding: 20px; border-radius: 15px; border: none; font-size: 1.5rem; font-weight: 900; text-transform: uppercase; cursor: pointer; transition: transform 0.1s, opacity 0.2s; }
+        .btn:active { transform: scale(0.98); }
+        .btn:hover { opacity: 0.9; }
+        .btn-convert { background: #00FF85; color: black; }
+        .btn-choose { background: white; color: black; }
+        #status-msg { margin-top: 15px; font-weight: 700; text-align: center; color: #00FF85; }
+    </style>
+</head>
+<body>
+
+<div class="ui-wrapper">
+    <div class="header">
+        <div class="logo-section">
+            <svg class="logo-icon" width="48" height="69" viewBox="0 0 48 69" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M43.5099 22.2859L28.7236 27.2104V48.8488C28.7227 52.0504 27.652 55.1598 25.6816 57.6833C23.7112 60.2067 20.9542 61.9994 17.8484 62.7767C14.7426 63.5539 11.4661 63.2711 8.53946 61.9732C5.61278 60.6752 3.20371 58.4366 1.69489 55.6129C0.186077 52.7891 -0.335958 49.5422 0.211708 46.3878C0.759373 43.2334 2.34533 40.3524 4.71768 38.2025C7.09002 36.0526 10.1127 34.7571 13.3056 34.5216C16.4985 34.2862 19.6785 35.1243 22.3406 36.903V13.5571C22.3406 11.5477 22.9727 9.58926 24.1475 7.95909C25.3223 6.32893 26.9802 5.10969 28.8864 4.47405L41.5726 0.245304C42.2922 0.0056438 43.0584 -0.0596272 43.8081 0.0548662C44.5578 0.16936 45.2696 0.460341 45.8849 0.903841C46.5001 1.34734 47.0011 1.93067 47.3467 2.60576C47.6923 3.28086 47.8726 4.02841 47.8727 4.78682V16.2284C47.8732 17.5682 47.4522 18.8742 46.6691 19.9614C45.8861 21.0486 44.7808 21.8618 43.5099 22.2859Z" fill="white"/>
+            </svg>
+            <h1 class="title">AUDIO CONVERTER</h1>
+        </div>
+        <div class="mode-badge">MP4 TO MP3</div>
+    </div>
+
+    <div class="converter-card">
+        <h2 class="section-title">PASTE YOUR URL HERE</h2>
+        <input type="text" id="url-input" class="url-input" placeholder="https://...">
+
+        <div class="action-grid">
+            <div class="upload-box" id="drop-zone">
+                <span id="upload-text">UPLOAD VIDEO<br>HERE</span>
+                <input type="file" id="file-input" accept="video/*">
+            </div>
+
+            <div class="button-column">
+                <button class="btn btn-convert" id="convert-btn">CONVERT</button>
+                <button class="btn btn-choose" onclick="document.getElementById('file-input').click()">CHOOSE FILE</button>
+            </div>
+        </div>
+        <div id="status-msg"></div>
+    </div>
+</div>
+
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const uploadText = document.getElementById('upload-text');
+    const convertBtn = document.getElementById('convert-btn');
+    const statusMsg = document.getElementById('status-msg');
+    const urlField = document.getElementById('url-input');
+
+    let selectedFile = null;
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+        if(e.target.files.length > 0) {
+            selectedFile = e.target.files[0];
+            uploadText.innerHTML = `FILE READY:<br><small>${selectedFile.name}</small>`;
+            urlField.value = ""; // Clear URL if a file is chosen
+        }
+    });
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(name => {
+        dropZone.addEventListener(name, (e) => { e.preventDefault(); e.stopPropagation(); });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        if(e.dataTransfer.files.length > 0) {
+            selectedFile = e.dataTransfer.files[0];
+            uploadText.innerHTML = `FILE READY:<br><small>${selectedFile.name}</small>`;
+            urlField.value = ""; 
+        }
+    });
+
+    convertBtn.addEventListener('click', async () => {
+        const urlValue = urlField.value.trim();
+
+        if (!selectedFile && !urlValue) {
+            alert("Please paste a URL or upload a video file first!");
+            return;
+        }
+
+        statusMsg.innerText = "Connecting to server... please wait.";
+        
+        const formData = new FormData();
+        if (urlValue) {
+            formData.append('url', urlValue);
+        } else {
+            formData.append('file', selectedFile);
+        }
+
+        try {
+            const response = await fetch('/convert', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = urlValue ? "converted_audio.mp3" : selectedFile.name.split('.')[0] + ".mp3";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                statusMsg.innerText = "Success! Download started.";
+            } else {
+                const errorData = await response.json();
+                statusMsg.innerText = "Error: " + (errorData.error || "Check backend console.");
+            }
+        } catch (error) {
+            statusMsg.innerText = "Failed to connect to Python backend.";
+        }
+    });
+</script>
+</body>
+</html>

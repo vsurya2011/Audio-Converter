@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Converter - Speech to Text</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #000; color: white; font-family: 'Arial Black', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-transform: uppercase; overflow: hidden; }
+        .container { background-color: #000; border: 1px solid #333; border-radius: 20px; padding: 40px; width: 900px; position: relative; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .logo { font-size: 32px; display: flex; align-items: center; gap: 12px; }
+        .nav-btn { background-color: white; color: black; padding: 10px 25px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; }
+        .main-card { border: 1px solid #444; border-radius: 15px; padding: 40px; display: flex; gap: 40px; background: #000; }
+        
+        /* Left Side: Result Output Area */
+        .text-output-container { flex: 1; display: flex; flex-direction: column; gap: 15px; }
+        #text-result { width: 100%; height: 350px; background: transparent; border: 1px solid #444; border-radius: 15px; color: #00ff7f; padding: 20px; font-family: 'Arial Black', sans-serif; font-size: 22px; resize: none; box-sizing: border-box; text-align: center; }
+
+        /* Right Side: Controls */
+        .controls-container { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+        .btn { width: 100%; padding: 22px; border: none; border-radius: 15px; font-size: 24px; font-family: 'Arial Black', sans-serif; cursor: pointer; text-transform: uppercase; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .btn-upload { background-color: #00ff7f; color: black; }
+        .btn-convert { background-color: white; color: black; margin-top: 10px; }
+        .btn-download { background-color: #444; color: white; border: 1px solid #666; }
+        
+        #audio-file-input { display: none; }
+        .status-text { font-size: 14px; color: #888; text-align: center; margin-top: 10px; }
+        .placeholder-space { height: 100px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-microphone-alt"></i> Speech To Text
+            </div>
+            <a href="/" class="nav-btn">HOME</a>
+        </div>
+        <div class="main-card">
+            <div class="text-output-container">
+                <textarea id="text-result" placeholder="TRANSCRIPT WILL APPEAR HERE" readonly></textarea>
+                <div id="file-name-display" class="status-text">NO FILE SELECTED</div>
+            </div>
+
+            <div class="controls-container">
+                <input type="file" id="audio-file-input" accept="audio/*,video/*">
+                
+                <button class="btn btn-upload" onclick="document.getElementById('audio-file-input').click()">
+                    <i class="fas fa-file-audio"></i> SELECT FILE
+                </button>
+
+                <button class="btn btn-convert" id="start-btn">CONVERT TO TEXT</button>
+                
+                <div class="placeholder-space"></div>
+
+                <button class="btn btn-download" id="download-txt-btn">DOWNLOAD .TXT</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('audio-file-input');
+        const startBtn = document.getElementById('start-btn');
+        const textResult = document.getElementById('text-result');
+        const downloadBtn = document.getElementById('download-txt-btn');
+        const fileNameDisplay = document.getElementById('file-name-display');
+
+        fileInput.onchange = () => {
+            if(fileInput.files[0]) {
+                fileNameDisplay.innerText = "SELECTED: " + fileInput.files[0].name;
+                textResult.value = ""; // Clear old transcript
+                startBtn.innerText = "CONVERT TO TEXT";
+            }
+        };
+
+        startBtn.onclick = async () => {
+            if (!fileInput.files[0]) return alert("Please select an audio or video file first!");
+
+            startBtn.innerText = "RECOGNIZING...";
+            startBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch('/convert_speech_to_text', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.text) {
+                    textResult.value = data.text;
+                    startBtn.innerText = "CONVERTED!";
+                } else {
+                    alert("Error: " + (data.error || "Could not recognize speech"));
+                    startBtn.innerText = "TRY AGAIN";
+                }
+            } catch (e) {
+                alert("Server Connection Failed");
+                startBtn.innerText = "ERROR";
+            } finally {
+                startBtn.disabled = false;
+            }
+        };
+
+        downloadBtn.onclick = () => {
+            const text = textResult.value;
+            if (!text) return alert("Nothing to download!");
+
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "transcript.txt";
+            a.click();
+            window.URL.revokeObjectURL(url);
+        };
+    </script>
+</body>
+</html>

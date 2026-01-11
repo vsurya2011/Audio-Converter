@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: audio-converter-service
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+    # This section installs FFmpeg on the Render instance
+    buildFilter:
+      paths:
+        - "requirements.txt"
+        - "app.py"
+    # Adding FFmpeg via a buildpack or apt-get isn't directly in yaml, 
+    # instead, use the "Native Runtimes" and add the FFmpeg Buildpack 
+    # in the Render Dashboard Settings.

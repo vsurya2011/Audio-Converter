@@ -1,0 +1,10 @@
+{
+  "name": "audio-converter-pro",
+  "version": "1.0.0",
+  "description": "Text-to-Speech and Speech-to-Text Converter",
+  "main": "app.py",
+  "scripts": {
+    "start": "gunicorn app:app"
+  },
+  "dependencies": {}
+}
