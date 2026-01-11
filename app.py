@@ -15,7 +15,6 @@ CORS(app)
 # =========================
 # DYNAMIC UPLOAD PATH (RENDER COMPATIBLE)
 # =========================
-# This ensures it works on both your local machine and Render
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 if os.environ.get('RENDER'):
     UPLOAD_FOLDER = "/tmp/uploads"
@@ -37,17 +36,14 @@ def converter_page():
 def m4a_to_mp3_page():
     return render_template("index3.html")
 
-# --- ADDED ROUTE FOR TRIMMER PAGE ---
 @app.route("/trimmer")
 def trimmer_page():
     return render_template("index4.html")
 
-# --- ADDED ROUTE FOR TEXT TO SPEECH PAGE ---
 @app.route("/text_to_speech")
 def text_to_speech_page():
     return render_template("index5.html")
 
-# --- ADDED ROUTE FOR SPEECH TO TEXT PAGE ---
 @app.route("/speech_to_text")
 def speech_to_text_page():
     return render_template("index6.html")
@@ -67,7 +63,6 @@ def convert_text_to_speech():
     output_path = os.path.join(UPLOAD_FOLDER, output_filename)
 
     try:
-        # Generate speech using gTTS
         tts = gTTS(text=text, lang='en')
         tts.save(output_path)
 
@@ -87,13 +82,11 @@ def convert_to_mp3():
     job_id = str(uuid.uuid4())
     input_path = None
     
-    # Get Trim Parameters
     start_time = request.form.get("start_time") 
     end_time = request.form.get("end_time")
     requested_format = request.form.get("format", "mp3") 
     requested_quality = request.form.get("quality", "360") 
 
-    # Set output filename
     output_filename = f"{job_id}.{requested_format}"
     output_path = os.path.join(UPLOAD_FOLDER, output_filename)
 
@@ -102,6 +95,9 @@ def convert_to_mp3():
         try:
             if input_path and os.path.exists(input_path):
                 os.remove(input_path)
+            # Optional: Remove output path after sending to save space on Render
+            # if os.path.exists(output_path):
+            #     os.remove(output_path)
         except Exception as e:
             print("Cleanup error:", e)
         return response
@@ -117,26 +113,32 @@ def convert_to_mp3():
         file.save(input_path)
 
         try:
+            # --- IMPROVED PRECISION LOGIC ---
+            # Using -ss and -to before -i for speed, but adding flags to ensure sync
             cmd = ["ffmpeg", "-y"]
+            
             if start_time:
                 cmd.extend(["-ss", str(start_time)])
-            
-            cmd.extend(["-i", input_path])
-            
             if end_time:
                 cmd.extend(["-to", str(end_time)])
             
+            cmd.extend(["-i", input_path])
+            
             if requested_format == "mp4":
+                # Ensure the scale matches the quality and use ultrafast for Render's CPU limits
                 scale_filter = f"scale=-2:{requested_quality}"
                 cmd.extend([
                     "-vf", scale_filter,
                     "-c:v", "libx264", 
                     "-preset", "ultrafast", 
-                    "-crf", "23", 
+                    "-crf", "28", # Slightly higher CRF to save memory/processing
                     "-c:a", "aac", 
+                    "-b:a", "128k",
+                    "-avoid_negative_ts", "make_zero",
                     "-movflags", "+faststart"
                 ])
             else:
+                # Audio path (MP3)
                 cmd.extend([
                     "-vn", 
                     "-ar", "44100", 
@@ -146,21 +148,26 @@ def convert_to_mp3():
                 ])
 
             cmd.append(output_path)
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            # Run FFmpeg and capture errors if they occur
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                print(f"FFmpeg Error: {result.stderr}")
+                return jsonify({"error": "FFmpeg processing failed"}), 500
 
             if not os.path.exists(output_path):
-                return jsonify({"error": "Conversion failed"}), 500
+                return jsonify({"error": "Conversion failed - File not created"}), 500
 
             return send_file(output_path, as_attachment=True)
 
         except Exception as e:
-            return jsonify({"error": f"FFmpeg error: {str(e)}"}), 500
+            return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
 
     # 2️⃣ YOUTUBE / URL
     url = request.form.get("url")
     if url:
         try:
-            # UPDATED OPTIONS TO BYPASS BOT DETECTION
             ydl_opts = {
                 "format": "bestaudio/best" if requested_format == "mp3" else "bestvideo+bestaudio/best",
                 "outtmpl": os.path.join(UPLOAD_FOLDER, f"{job_id}.%(ext)s"),
@@ -181,7 +188,6 @@ def convert_to_mp3():
                 info = ydl.extract_info(url, download=True)
                 downloaded_file = ydl.prepare_filename(info)
                 
-                # Check for extension changes by yt-dlp
                 if requested_format == "mp3" and not downloaded_file.endswith(".mp3"):
                     if os.path.exists(os.path.splitext(downloaded_file)[0] + ".mp3"):
                         downloaded_file = os.path.splitext(downloaded_file)[0] + ".mp3"
@@ -190,10 +196,12 @@ def convert_to_mp3():
 
             if start_time or end_time or requested_format == "mp4":
                 final_output = os.path.join(UPLOAD_FOLDER, f"final_{output_filename}")
+                
                 trim_cmd = ["ffmpeg", "-y"]
                 if start_time: trim_cmd.extend(["-ss", str(start_time)])
-                trim_cmd.extend(["-i", current_output])
                 if end_time: trim_cmd.extend(["-to", str(end_time)])
+                
+                trim_cmd.extend(["-i", current_output])
                 
                 if requested_format == "mp3":
                     trim_cmd.extend(["-vn", "-acodec", "libmp3lame"])
@@ -204,6 +212,7 @@ def convert_to_mp3():
                         "-c:v", "libx264", 
                         "-preset", "ultrafast", 
                         "-c:a", "aac", 
+                        "-avoid_negative_ts", "make_zero",
                         "-movflags", "+faststart"
                     ])
                 
@@ -241,7 +250,6 @@ def convert_speech_to_text():
     wav_path = os.path.join(UPLOAD_FOLDER, f"{job_id}.wav")
 
     try:
-        # Convert audio/video to WAV for SpeechRecognition
         audio = AudioSegment.from_file(input_path)
         audio.export(wav_path, format="wav")
 
@@ -258,11 +266,9 @@ def convert_speech_to_text():
     except Exception as e:
         return jsonify({"error": f"Speech to Text error: {str(e)}"}), 500
 
-
 # =========================
 # RUN SERVER
 # =========================
 if __name__ == "__main__":
-    # Use environment port for deployment, default 5000 for local
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
