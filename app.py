@@ -160,11 +160,14 @@ def convert_to_mp3():
     url = request.form.get("url")
     if url:
         try:
+            # UPDATED OPTIONS TO BYPASS BOT DETECTION
             ydl_opts = {
                 "format": "bestaudio/best" if requested_format == "mp3" else "bestvideo+bestaudio/best",
                 "outtmpl": os.path.join(UPLOAD_FOLDER, f"{job_id}.%(ext)s"),
                 "noplaylist": True,
                 "quiet": True,
+                "nocheckcertificate": True,
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
 
             if requested_format == "mp3":
@@ -177,8 +180,11 @@ def convert_to_mp3():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 downloaded_file = ydl.prepare_filename(info)
+                
+                # Check for extension changes by yt-dlp
                 if requested_format == "mp3" and not downloaded_file.endswith(".mp3"):
-                    downloaded_file = os.path.splitext(downloaded_file)[0] + ".mp3"
+                    if os.path.exists(os.path.splitext(downloaded_file)[0] + ".mp3"):
+                        downloaded_file = os.path.splitext(downloaded_file)[0] + ".mp3"
 
             current_output = downloaded_file
 
